@@ -1,0 +1,10 @@
+{
+  "buildCommand": "pnpm --filter @workspace/milliondoors run build",
+  "outputDirectory": "artifacts/milliondoors/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
