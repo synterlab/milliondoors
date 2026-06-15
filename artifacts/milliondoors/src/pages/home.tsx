@@ -1,6 +1,125 @@
 import { motion, useMotionValue, useSpring, AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { Github } from "lucide-react";
+import { Github, LogIn, X, User } from "lucide-react";
+
+const STORAGE_USER = "md_username";
+
+/* ─── Orynth Badge ───────────────────────────────────────────── */
+function OrynthBadge() {
+  return (
+    <motion.a
+      href="https://orynth.dev/projects/million-doors"
+      target="_blank"
+      rel="noopener noreferrer"
+      whileHover={{ scale: 1.05, filter: "brightness(1.08)" }}
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 380, damping: 22 }}
+      style={{ display: "inline-flex", lineHeight: 0 }}
+    >
+      <img
+        src="https://orynth.dev/api/badge/million-doors?theme=dark&style=default"
+        alt="Featured on Orynth"
+        width={130}
+        height={40}
+        style={{ height: 32, width: "auto" }}
+      />
+    </motion.a>
+  );
+}
+
+/* ─── Login Modal ────────────────────────────────────────────── */
+function LoginModal({ onClose, onLogin }: { onClose: () => void; onLogin: (name: string) => void }) {
+  const [handle, setHandle] = useState("");
+  const [error, setError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80); }, []);
+
+  const submit = () => {
+    const trimmed = handle.trim();
+    if (trimmed.length < 2) { setError("At least 2 characters required."); return; }
+    onLogin(trimmed);
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[200] flex items-center justify-center px-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.28 }}
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/72 backdrop-blur-sm" />
+
+      <motion.div
+        className="relative z-10 w-full max-w-sm rounded-2xl border border-amber-400/18 bg-black/88 backdrop-blur-xl p-8"
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.97 }}
+        transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ boxShadow: "0 0 80px rgba(251,191,36,0.10), 0 32px 64px rgba(0,0,0,0.6)" }}
+      >
+        {/* Close */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-white/28 hover:text-white/62 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Icon */}
+        <div className="flex justify-center mb-6">
+          <div className="w-12 h-12 rounded-full border border-amber-400/22 bg-amber-400/8 flex items-center justify-center">
+            <User className="w-5 h-5 text-amber-400/70" />
+          </div>
+        </div>
+
+        <h2
+          className="text-center text-white/90 mb-1.5"
+          style={{ fontFamily: "'Cinzel', serif", fontSize: "1rem", fontWeight: 700, letterSpacing: "0.14em" }}
+        >
+          Enter the Corridor
+        </h2>
+        <p className="text-center text-white/30 text-xs mb-7 tracking-wide">
+          Choose your explorer handle
+        </p>
+
+        <input
+          ref={inputRef}
+          type="text"
+          value={handle}
+          maxLength={24}
+          placeholder="e.g. doorwalker"
+          onChange={(e) => { setHandle(e.target.value); setError(""); }}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white/82 text-sm placeholder:text-white/20 outline-none focus:border-amber-400/38 transition-colors duration-200 mb-2 font-mono tracking-wider"
+        />
+        {error && <p className="text-red-400/70 text-xs mb-3 font-mono">{error}</p>}
+
+        <motion.button
+          onClick={submit}
+          className="w-full mt-4 py-3 rounded-xl text-black text-xs font-bold uppercase tracking-widest"
+          style={{
+            background: "linear-gradient(135deg, #fef3c7 0%, #fbbf24 45%, #f59e0b 100%)",
+            fontFamily: "'Cinzel', serif",
+          }}
+          whileHover={{ scale: 1.02, filter: "brightness(1.08)" }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ type: "spring", stiffness: 400, damping: 22 }}
+        >
+          Enter
+        </motion.button>
+
+        <p className="text-center text-white/16 text-[10px] mt-4 font-mono tracking-widest uppercase">
+          Stored locally · No password needed
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 const APP_URL = import.meta.env.BASE_URL + "app";
 
@@ -230,14 +349,14 @@ function CorridorBackground() {
 }
 
 /* ─── Navbar ─────────────────────────────────────────────────── */
-function Nav() {
+function Nav({ onLogin, username, onLogout }: { onLogin: () => void; username: string | null; onLogout: () => void }) {
   return (
     <motion.nav
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.2, delay: 2.2, ease: [0.16, 1, 0.3, 1] }}
       className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-10 h-16"
-      style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, transparent 100%)" }}
+      style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.80) 0%, transparent 100%)", backdropFilter: "blur(0px)" }}
     >
       <div className="flex items-center gap-2.5 text-amber-200/85">
         <DoorMark size={28} />
@@ -253,17 +372,44 @@ function Nav() {
           href="https://github.com/synterlab/milliondoors"
           target="_blank"
           rel="noreferrer"
-          className="hidden sm:flex items-center gap-1.5 text-white/30 hover:text-white/65 transition-colors duration-300 text-xs font-mono tracking-widest"
+          className="hidden sm:flex items-center gap-1.5 text-white/28 hover:text-white/62 transition-colors duration-300 text-xs font-mono tracking-widest"
           whileHover={{ scale: 1.04 }}
         >
           <Github className="w-3.5 h-3.5" />
           <span>GitHub</span>
         </motion.a>
+
+        {/* Login / User pill */}
+        {username ? (
+          <motion.button
+            onClick={onLogout}
+            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-full border border-amber-400/20 bg-amber-400/6 text-amber-300/72 text-xs font-mono tracking-widest"
+            whileHover={{ borderColor: "rgba(251,191,36,0.40)", backgroundColor: "rgba(251,191,36,0.12)", scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 380, damping: 22 }}
+            title="Click to log out"
+          >
+            <User className="w-3 h-3" />
+            <span>{username}</span>
+          </motion.button>
+        ) : (
+          <motion.button
+            onClick={onLogin}
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-full border border-white/10 bg-white/4 text-white/45 hover:text-white/72 text-xs font-mono tracking-widest transition-colors duration-300"
+            whileHover={{ borderColor: "rgba(255,255,255,0.20)", backgroundColor: "rgba(255,255,255,0.07)", scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 380, damping: 22 }}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Login</span>
+          </motion.button>
+        )}
+
         <motion.a
           href={APP_URL}
-          className="flex items-center px-5 py-2 rounded-full bg-amber-400 text-black text-xs font-bold uppercase"
+          className="flex items-center px-5 py-2 rounded-full bg-amber-400 text-black text-xs font-bold uppercase overflow-hidden relative"
           style={{ fontFamily: "'Cinzel', serif", letterSpacing: "0.14em" }}
-          whileHover={{ scale: 1.05, backgroundColor: "#fcd34d" }}
+          whileHover={{ scale: 1.06, backgroundColor: "#fcd34d", boxShadow: "0 0 28px rgba(251,191,36,0.42)" }}
           whileTap={{ scale: 0.96 }}
           transition={{ type: "spring", stiffness: 380, damping: 22 }}
         >
@@ -277,12 +423,27 @@ function Nav() {
 /* ─── Page ───────────────────────────────────────────────────── */
 export default function Home() {
   const [introGone, setIntroGone] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [username, setUsername] = useState<string | null>(() => {
+    try { return localStorage.getItem(STORAGE_USER); } catch { return null; }
+  });
+
+  const handleLogin = (name: string) => {
+    localStorage.setItem(STORAGE_USER, name);
+    setUsername(name);
+    setShowLogin(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(STORAGE_USER);
+    setUsername(null);
+  };
 
   // Subtle parallax
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const springX = useSpring(mouseX, { stiffness: 22, damping: 28 });
-  const springY = useSpring(mouseY, { stiffness: 22, damping: 28 });
+  const springX = useSpring(mouseX, { stiffness: 18, damping: 26 });
+  const springY = useSpring(mouseY, { stiffness: 18, damping: 26 });
 
   const handleMouse = (e: React.MouseEvent) => {
     mouseX.set((e.clientX - window.innerWidth  / 2) * 0.008);
@@ -318,7 +479,14 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <Nav />
+      <Nav onLogin={() => setShowLogin(true)} username={username} onLogout={handleLogout} />
+
+      {/* Login Modal */}
+      <AnimatePresence>
+        {showLogin && (
+          <LoginModal onClose={() => setShowLogin(false)} onLogin={handleLogin} />
+        )}
+      </AnimatePresence>
 
       <div
         className="relative min-h-[100dvh] flex flex-col items-center justify-center overflow-hidden select-none bg-black"
@@ -472,21 +640,27 @@ export default function Home() {
           className="absolute bottom-6 left-0 right-0 z-10 flex items-center justify-between px-8"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1.2, delay: CONTENT_START + 1.2 }}
+          transition={{ duration: 1.4, delay: CONTENT_START + 1.2 }}
         >
-          <span
-            className="text-white/14 uppercase"
-            style={{ fontFamily: "'Cinzel', serif", fontSize: "0.52rem", letterSpacing: "0.26em" }}
-          >
-            synterlab / milliondoors
-          </span>
+          {/* Left: brand + Orynth badge */}
+          <div className="flex items-center gap-3">
+            <span
+              className="text-white/14 uppercase hidden sm:block"
+              style={{ fontFamily: "'Cinzel', serif", fontSize: "0.52rem", letterSpacing: "0.26em" }}
+            >
+              synterlab / milliondoors
+            </span>
+            <OrynthBadge />
+          </div>
+
+          {/* Right: X / Twitter */}
           <motion.a
             href="https://x.com/xyzmiiliondoors"
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/8 bg-black/28 backdrop-blur-sm"
             whileHover={{ borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(0,0,0,0.52)", scale: 1.05 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.22 }}
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-white/28">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.629 5.905-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
