@@ -2,7 +2,7 @@ import { motion, useMotionValue, useSpring, AnimatePresence } from "framer-motio
 import { useEffect, useRef, useState } from "react";
 import { Github } from "lucide-react";
 
-const APP_URL = "#";
+const APP_URL = import.meta.env.BASE_URL + "app";
 
 /* ─── Door Logo ─────────────────────────────────────────────── */
 function DoorMark({ size = 32 }: { size?: number }) {
