@@ -1,6 +1,8 @@
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
+const STORAGE_USER = "md_username";
+
 /* ─── Overscroll off ─────────────────────────────────────────── */
 if (typeof document !== "undefined") {
   document.documentElement.style.overscrollBehavior = "none";
@@ -516,75 +518,90 @@ function FloatingDoorCard({ doorNumber, onOpen }: { doorNumber:number; onOpen:()
 function RewardReveal({ reward, onClose, onShare }: { reward:Reward; onClose:()=>void; onShare:()=>void }) {
   const isEmpty = reward.rarity === "nothing";
   const c = RC[reward.rarity];
+  const isGlowing = reward.rarity==="legendary"||reward.rarity==="mythic";
 
   const s = (i: number) => ({
-    initial:{ opacity:0, y:18 },
-    animate:{ opacity:1, y:0 },
-    transition:{ duration:0.6, delay:i*0.14, ease:[0.16,1,0.3,1] as never },
+    initial:{ opacity:0, y:20, filter:"blur(6px)" },
+    animate:{ opacity:1, y:0, filter:"blur(0px)" },
+    transition:{ duration:0.7, delay:i*0.13, ease:[0.16,1,0.3,1] as never },
   });
 
   return (
-    <motion.div className="flex flex-col items-center text-center w-full px-6 py-6"
-      initial={{ opacity:0, scale:0.93, y:24 }}
+    <motion.div className="flex flex-col items-center text-center w-full px-6 py-8"
+      initial={{ opacity:0, scale:0.92, y:28 }}
       animate={{ opacity:1, scale:1, y:0 }}
-      transition={{ duration:0.65, ease:[0.16,1,0.3,1] }}>
+      transition={{ duration:0.7, ease:[0.16,1,0.3,1] }}>
 
       <motion.div className="mb-5" {...s(0)}><RarityBadge rarity={reward.rarity} /></motion.div>
 
       {isEmpty ? (
         <motion.div className="mb-8" {...s(1)}>
-          <div className="w-20 h-20 rounded-full mx-auto mb-5 flex items-center justify-center text-3xl"
-            style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)" }}>
-            <span style={{ opacity:0.15, fontFamily:"'Cinzel',serif" }}>□</span>
+          <div className="w-24 h-24 rounded-full mx-auto mb-6 flex items-center justify-center"
+            style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)" }}>
+            <span style={{ opacity:0.12, fontFamily:"'Cinzel',serif", fontSize:"1.8rem" }}>□</span>
           </div>
-          <p className="font-mono text-[11px] text-white/22 uppercase tracking-widest mb-2">Nothing found</p>
-          <p className="text-white/20 text-sm font-light">Door #{reward.doorNumber.toLocaleString()} was empty.</p>
-          <p className="font-mono text-[9px] text-white/12 mt-1.5">{RARITY_PCT["nothing"]}</p>
+          <p className="font-mono text-[10px] text-white/20 uppercase tracking-[0.35em] mb-2">Nothing found</p>
+          <p className="text-white/22 text-sm font-light">Door #{reward.doorNumber.toLocaleString()} was empty.</p>
+          <p className="font-mono text-[9px] text-white/10 mt-2">{RARITY_PCT["nothing"]}</p>
         </motion.div>
       ) : (
         <motion.div className="mb-8" {...s(1)}>
-          {/* Coin orb */}
-          <motion.div className="w-28 h-28 rounded-full mx-auto mb-5 flex items-center justify-center"
-            style={{ background:c.bg, border:`1px solid ${c.border}`, boxShadow:c.glow }}
-            animate={
-              reward.rarity==="mythic"    ? { boxShadow:["0 0 40px rgba(255,255,255,0.3)","0 0 90px rgba(255,255,255,0.7)","0 0 40px rgba(255,255,255,0.3)"] }
-            : reward.rarity==="legendary" ? { boxShadow:["0 0 32px rgba(251,191,36,0.42)","0 0 70px rgba(251,191,36,0.74)","0 0 32px rgba(251,191,36,0.42)"] }
-            : {}
-            }
-            transition={{ duration:2.2, repeat:Infinity, ease:"easeInOut" }}>
-            <span className="font-bold text-base tracking-widest" style={{ color:c.text, fontFamily:"'Cinzel',serif" }}>
-              {reward.coin?.slice(0,2)}
-            </span>
-          </motion.div>
+          {/* Coin orb with outer ring */}
+          <div className="relative mx-auto w-32 h-32 mb-6 flex items-center justify-center">
+            {isGlowing && (
+              <motion.div className="absolute inset-0 rounded-full -z-10"
+                animate={{ opacity:[0.4,0.9,0.4], scale:[0.95,1.05,0.95] }}
+                transition={{ duration:2.4, repeat:Infinity, ease:"easeInOut" }}
+                style={{ background:`radial-gradient(circle,${c.bg} 0%,transparent 70%)`, filter:"blur(8px)" }}
+              />
+            )}
+            <motion.div className="w-28 h-28 rounded-full flex items-center justify-center"
+              style={{ background:`linear-gradient(145deg,${c.bg},rgba(0,0,0,0.4))`, border:`1px solid ${c.border}` }}
+              animate={
+                reward.rarity==="mythic"    ? { boxShadow:["0 0 40px rgba(255,255,255,0.28)","0 0 80px rgba(255,255,255,0.62)","0 0 40px rgba(255,255,255,0.28)"] }
+              : reward.rarity==="legendary" ? { boxShadow:["0 0 28px rgba(251,191,36,0.38)","0 0 65px rgba(251,191,36,0.68)","0 0 28px rgba(251,191,36,0.38)"] }
+              : { boxShadow: c.glow }
+              }
+              transition={{ duration:2.2, repeat:Infinity, ease:"easeInOut" }}>
+              <span className="font-bold text-lg tracking-widest" style={{ color:c.text, fontFamily:"'Cinzel',serif",
+                textShadow:isGlowing?`0 0 16px ${c.border}`:"none" }}>
+                {reward.coin?.slice(0,2)}
+              </span>
+            </motion.div>
+          </div>
 
           <h2 className="text-4xl font-bold mb-2"
             style={{ color:c.text, fontFamily:"'Cinzel',serif", letterSpacing:"0.09em",
-              filter: c.glow!=="none" ? `drop-shadow(0 0 18px ${c.border})` : "none" }}>
+              filter:isGlowing?`drop-shadow(0 0 20px ${c.border})`:"none" }}>
             {reward.coin}
           </h2>
-          <p className="font-mono text-[10px] text-white/30 tracking-widest uppercase mb-1">
-            Found in Door #{reward.doorNumber.toLocaleString()}
+          <p className="font-mono text-[10px] text-white/28 tracking-[0.3em] uppercase mb-1.5">
+            Door #{reward.doorNumber.toLocaleString()}
           </p>
-          <p className="font-mono text-[9px] text-white/18">{RARITY_PCT[reward.rarity]}</p>
+          <p className="font-mono text-[9px] text-white/16">{RARITY_PCT[reward.rarity]}</p>
         </motion.div>
       )}
 
-      <motion.div className="flex items-center gap-3 w-full max-w-xs" {...s(isEmpty ? 2 : 3)}>
+      <motion.div className="flex items-center gap-2.5 w-full max-w-xs" {...s(isEmpty ? 2 : 3)}>
         {!isEmpty && (
           <button onClick={onShare}
             className="flex-shrink-0 px-5 rounded-full font-mono text-xs tracking-widest"
-            style={{ ...btnBase, border:"1px solid rgba(255,255,255,0.11)", color:"rgba(255,255,255,0.42)",
-              background:"rgba(255,255,255,0.04)", height:48 }}>
+            style={{ ...btnBase, border:"1px solid rgba(255,255,255,0.10)", color:"rgba(255,255,255,0.40)",
+              background:"rgba(255,255,255,0.04)", height:50 }}>
             Share
           </button>
         )}
         <motion.button onClick={() => { haptic(8); onClose(); }}
-          className="flex-1 rounded-full text-black font-bold uppercase tracking-widest"
+          className="flex-1 rounded-full text-black font-bold uppercase tracking-widest overflow-hidden relative"
           style={{ ...btnBase, height:52, fontSize:"0.76rem", fontFamily:"'Cinzel',serif",
             background:"linear-gradient(135deg,#fef3c7 0%,#fbbf24 42%,#f59e0b 100%)",
-            boxShadow:"0 0 24px rgba(251,191,36,0.32)" }}
+            boxShadow:"0 0 28px rgba(251,191,36,0.34),0 4px 16px rgba(0,0,0,0.5)" }}
           whileTap={{ scale:0.96 }}>
-          {isEmpty ? "Try Another" : "Open Next"}
+          <motion.div className="absolute inset-0 pointer-events-none"
+            style={{ background:"linear-gradient(105deg,transparent 25%,rgba(255,255,255,0.38) 50%,transparent 75%)", backgroundSize:"220% 100%" }}
+            animate={{ backgroundPosition:["-110% 0%","210% 0%"] }}
+            transition={{ duration:2.2, repeat:Infinity, repeatDelay:2.2, ease:"easeInOut" }} />
+          <span className="relative z-10">{isEmpty ? "Try Another" : "Open Next"}</span>
         </motion.button>
       </motion.div>
     </motion.div>
@@ -697,34 +714,40 @@ function HomeView({ onOpenDoor }: { onOpenDoor:()=>void }) {
 function CollectionView({ collection }: { collection: StoredFind[] }) {
   if (collection.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
-        <div className="mb-6 opacity-25"><RealDoor size={0.5}/></div>
-        <p className="font-mono text-[11px] text-white/20 uppercase tracking-widest mb-2">No discoveries yet</p>
-        <p className="text-white/15 text-sm font-light">Open a door to begin your collection.</p>
-      </div>
+      <motion.div className="flex flex-col items-center justify-center py-24 px-6 text-center"
+        initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ duration:0.5 }}>
+        <div className="mb-6" style={{ opacity:0.18 }}><RealDoor size={0.5}/></div>
+        <p className="font-mono text-[10px] text-white/20 uppercase tracking-[0.3em] mb-2">No discoveries yet</p>
+        <p className="text-white/14 text-sm font-light">Open a door to begin your collection.</p>
+      </motion.div>
     );
   }
   return (
-    <div className="px-4 pb-4">
-      <p className="font-mono text-[10px] text-white/18 tracking-widest uppercase mb-4 pt-2">
+    <div className="px-4 pb-6">
+      <p className="font-mono text-[9px] text-white/16 tracking-[0.3em] uppercase mb-4 pt-1">
         {collection.length} {collection.length===1?"discovery":"discoveries"}
       </p>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {collection.map((item,i) => {
           const c = RC[item.rarity];
+          const isGlowing = item.rarity==="legendary"||item.rarity==="mythic";
           return (
             <motion.div key={item.id}
-              initial={{ opacity:0, scale:0.92 }} animate={{ opacity:1, scale:1 }}
-              transition={{ delay:Math.min(i*0.04,0.4) }}
-              className="rounded-2xl p-4"
-              style={{ background:"#0d0d0d", border:`1px solid ${c.border}`,
-                boxShadow:(item.rarity==="legendary"||item.rarity==="mythic")?c.shadow:undefined }}>
-              <div className="mb-2"><RarityBadge rarity={item.rarity}/></div>
-              <p className="font-bold text-sm mb-0.5 truncate"
-                style={{ color:c.text, fontFamily:"'Cinzel',serif", letterSpacing:"0.05em" }}>
-                {item.coin}
-              </p>
-              <p className="font-mono text-[9px] text-white/20">#{item.doorNumber.toLocaleString()}</p>
+              initial={{ opacity:0, scale:0.90, y:8 }} animate={{ opacity:1, scale:1, y:0 }}
+              transition={{ delay:Math.min(i*0.045,0.45), type:"spring", stiffness:280, damping:24 }}
+              className="rounded-2xl p-3.5 flex flex-col gap-2"
+              style={{ background:"linear-gradient(145deg,#0e0b06,#09070300)",
+                border:`1px solid ${c.border}`,
+                boxShadow:isGlowing?c.shadow:"0 2px 12px rgba(0,0,0,0.5)" }}>
+              <RarityBadge rarity={item.rarity}/>
+              <div>
+                <p className="font-bold text-sm truncate leading-tight"
+                  style={{ color:c.text, fontFamily:"'Cinzel',serif", letterSpacing:"0.06em",
+                    textShadow:isGlowing?`0 0 12px ${c.border}`:"none" }}>
+                  {item.coin}
+                </p>
+                <p className="font-mono text-[9px] text-white/18 mt-0.5">#{item.doorNumber.toLocaleString()}</p>
+              </div>
             </motion.div>
           );
         })}
@@ -737,49 +760,76 @@ function CollectionView({ collection }: { collection: StoredFind[] }) {
    STATS
 ═══════════════════════════════════════════════════════════════ */
 function StatsView({ stats, earned }: { stats:Stats; earned:string[] }) {
-  const pct = Math.min(100, (stats.found/10)*100);
+  const pct = Math.min(100, (stats.found / Math.max(stats.opened, 1)) * 100);
+  const STAT_ITEMS: [string, number, string][] = [
+    ["Doors Opened", stats.opened, "rgba(251,191,36,0.85)"],
+    ["Coins Found",  stats.found,  "rgba(147,197,253,0.85)"],
+    ["Legendary",    stats.legendary, "rgba(251,191,36,0.92)"],
+    ["Mythic",       stats.mythic, "rgba(255,255,255,0.95)"],
+  ];
   return (
-    <div className="px-4 pb-4 space-y-3">
-      <div className="grid grid-cols-2 gap-2.5">
-        {([["Doors Opened",stats.opened],["Coins Found",stats.found],["Legendary",stats.legendary],["Mythic",stats.mythic]] as [string,number][]).map(([label,value])=>(
-          <div key={label} className="rounded-2xl p-4" style={{ background:"#0d0d0d", border:"1px solid rgba(255,255,255,0.07)" }}>
-            <p className="font-mono text-[9px] text-white/22 uppercase tracking-widest mb-1.5">{label}</p>
-            <p className="text-3xl font-bold text-amber-200/88" style={{ fontFamily:"'Cinzel',serif" }}>{value.toLocaleString()}</p>
-          </div>
+    <div className="px-4 pb-6 space-y-3">
+      {/* Stat grid */}
+      <div className="grid grid-cols-2 gap-2">
+        {STAT_ITEMS.map(([label, value, color], i) => (
+          <motion.div key={label}
+            initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
+            transition={{ delay:i*0.07, type:"spring", stiffness:280, damping:24 }}
+            className="rounded-2xl p-4"
+            style={{ background:"linear-gradient(145deg,#0e0b06,#07050200)", border:"1px solid rgba(255,255,255,0.07)" }}>
+            <p className="font-mono text-[9px] text-white/20 uppercase tracking-[0.28em] mb-2">{label}</p>
+            <p className="text-3xl font-bold leading-none" style={{ fontFamily:"'Cinzel',serif", color }}>{value.toLocaleString()}</p>
+          </motion.div>
         ))}
       </div>
-      <div className="rounded-2xl p-4" style={{ background:"#0d0d0d", border:"1px solid rgba(255,255,255,0.07)" }}>
+
+      {/* Find rate bar */}
+      <motion.div className="rounded-2xl p-4"
+        initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.28 }}
+        style={{ background:"linear-gradient(145deg,#0e0b06,#07050200)", border:"1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center justify-between mb-3">
-          <p className="font-mono text-[9px] text-white/22 uppercase tracking-widest">Collection</p>
-          <p className="font-mono text-[9px] text-amber-300/55">{pct.toFixed(1)}%</p>
+          <p className="font-mono text-[9px] text-white/20 uppercase tracking-[0.28em]">Find Rate</p>
+          <p className="font-mono text-[9px] text-amber-300/60">{pct.toFixed(1)}%</p>
         </div>
         <div className="h-1.5 rounded-full overflow-hidden" style={{ background:"rgba(255,255,255,0.06)" }}>
           <motion.div className="h-full rounded-full"
-            style={{ background:"linear-gradient(90deg,#d97706,#fbbf24)" }}
-            initial={{ width:0 }} animate={{ width:`${pct}%` }} transition={{ duration:1.2, ease:"easeOut" }} />
+            style={{ background:"linear-gradient(90deg,#b45309,#fbbf24,#fef3c7)" }}
+            initial={{ width:0 }} animate={{ width:`${pct}%` }}
+            transition={{ duration:1.4, ease:[0.16,1,0.3,1] }} />
         </div>
-      </div>
-      <div>
-        <p className="font-mono text-[9px] text-white/22 uppercase tracking-widest mb-3">Achievements</p>
+      </motion.div>
+
+      {/* Achievements */}
+      <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:0.35 }}>
+        <p className="font-mono text-[9px] text-white/18 uppercase tracking-[0.28em] mb-3">Achievements</p>
         <div className="space-y-2">
-          {ACHIEVEMENTS.map(a => {
+          {ACHIEVEMENTS.map((a, i) => {
             const unlocked = earned.includes(a.id);
             return (
-              <div key={a.id} className="rounded-2xl p-4 flex items-center gap-3"
-                style={{ background:"#0d0d0d", border:`1px solid ${unlocked?"rgba(251,191,36,0.18)":"rgba(255,255,255,0.06)"}`, opacity:unlocked?1:0.38 }}>
+              <motion.div key={a.id}
+                initial={{ opacity:0, x:-8 }} animate={{ opacity:1, x:0 }}
+                transition={{ delay:0.38 + i*0.06 }}
+                className="rounded-2xl p-3.5 flex items-center gap-3"
+                style={{ background:unlocked?"linear-gradient(145deg,#100d04,#07060100)":"rgba(255,255,255,0.02)",
+                  border:`1px solid ${unlocked?"rgba(251,191,36,0.18)":"rgba(255,255,255,0.055)"}`,
+                  opacity:unlocked?1:0.32 }}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0"
-                  style={{ background:unlocked?"rgba(251,191,36,0.10)":"rgba(255,255,255,0.04)" }}>
+                  style={{ background:unlocked?"rgba(251,191,36,0.10)":"rgba(255,255,255,0.04)",
+                    border:unlocked?"1px solid rgba(251,191,36,0.15)":"1px solid rgba(255,255,255,0.06)" }}>
                   {a.icon}
                 </div>
-                <div>
-                  <p className="text-white/78 text-xs font-semibold" style={{ fontFamily:"'Cinzel',serif" }}>{a.title}</p>
-                  <p className="text-white/25 text-[10px] font-light mt-0.5">{a.desc}</p>
+                <div className="min-w-0">
+                  <p className="text-white/80 text-xs font-semibold truncate" style={{ fontFamily:"'Cinzel',serif" }}>{a.title}</p>
+                  <p className="text-white/22 text-[10px] font-light mt-0.5">{a.desc}</p>
                 </div>
-              </div>
+                {unlocked && (
+                  <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400/60 ml-auto" />
+                )}
+              </motion.div>
             );
           })}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -924,27 +974,40 @@ const NAV: {id:View;label:string;icon:string}[] = [
 function BottomNav({ view, onView }: { view:View; onView:(v:View)=>void }) {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 flex"
-      style={{ background:"rgba(0,0,0,0.94)", backdropFilter:"blur(24px)",
-        borderTop:"1px solid rgba(255,255,255,0.055)",
+      style={{ background:"rgba(4,3,0,0.96)", backdropFilter:"blur(28px)",
+        borderTop:"1px solid rgba(255,255,255,0.06)",
         paddingBottom:"env(safe-area-inset-bottom)" }}>
       {NAV.map(item=>{
         const active = view===item.id;
         return (
           <button key={item.id}
             onClick={()=>{ haptic(6); onView(item.id); }}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5"
-            style={{ ...btnBase, height:56, color:active?"rgba(251,191,36,0.92)":"rgba(255,255,255,0.22)",
-              transition:"color 0.18s" }}
+            className="flex-1 flex flex-col items-center justify-center gap-1 relative"
+            style={{ ...btnBase, height:56,
+              color:active?"rgba(251,191,36,0.95)":"rgba(255,255,255,0.20)",
+              transition:"color 0.2s ease" }}
             aria-label={item.label}>
-            <motion.span className="text-lg leading-none"
-              animate={{ scale:active?1.1:1 }} transition={{ type:"spring", stiffness:350, damping:22 }}>
+            {/* Active pill bg */}
+            {active && (
+              <motion.div className="absolute inset-x-2 top-1 bottom-1 rounded-xl -z-10"
+                layoutId="navActiveBg"
+                style={{ background:"rgba(251,191,36,0.07)" }}
+                transition={{ type:"spring", stiffness:400, damping:32 }}
+              />
+            )}
+            <motion.span className="text-base leading-none"
+              animate={{ scale:active?1.12:1, y:active?-1:0 }}
+              transition={{ type:"spring", stiffness:380, damping:24 }}>
               {item.icon}
             </motion.span>
-            <span className="text-[9px] font-mono tracking-wide uppercase">{item.label}</span>
+            <span className="text-[8px] font-mono tracking-widest uppercase"
+              style={{ opacity:active?0.9:0.5 }}>
+              {item.label}
+            </span>
             {active && (
-              <motion.div className="absolute bottom-0 h-0.5 w-5 rounded-full"
+              <motion.div className="absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-6 rounded-full"
                 layoutId="navIndicator"
-                style={{ background:"rgba(251,191,36,0.75)" }} />
+                style={{ background:"linear-gradient(90deg,rgba(251,191,36,0.0),rgba(251,191,36,0.85),rgba(251,191,36,0.0))" }} />
             )}
           </button>
         );
@@ -954,34 +1017,132 @@ function BottomNav({ view, onView }: { view:View; onView:(v:View)=>void }) {
 }
 
 function TopBar({ onX }: { onX:()=>void }) {
+  const [username, setUsername] = useState<string|null>(()=>{
+    try { return localStorage.getItem(STORAGE_USER); } catch { return null; }
+  });
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [handle, setHandle] = useState("");
+
+  const submitLogin = () => {
+    const t = handle.trim();
+    if (t.length < 2) return;
+    localStorage.setItem(STORAGE_USER, t);
+    setUsername(t);
+    setShowLoginPrompt(false);
+    setHandle("");
+  };
+
   return (
-    <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4"
-      style={{ height:48, paddingTop:"env(safe-area-inset-top)",
-        background:"linear-gradient(to bottom,rgba(0,0,0,0.95) 0%,rgba(0,0,0,0.0) 100%)" }}>
-      <div className="flex items-center gap-2 text-amber-200/82">
-        <span className="text-sm font-semibold uppercase tracking-widest" style={{ fontFamily:"'Cinzel',serif" }}>
-          Million Doors
-        </span>
+    <>
+      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4"
+        style={{ height:48, paddingTop:"env(safe-area-inset-top)",
+          background:"rgba(0,0,0,0.88)", backdropFilter:"blur(18px)",
+          borderBottom:"1px solid rgba(255,255,255,0.045)" }}>
+        <div className="flex items-center gap-2 text-amber-200/82">
+          <span className="text-sm font-semibold uppercase tracking-widest" style={{ fontFamily:"'Cinzel',serif" }}>
+            Million Doors
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* User pill */}
+          {username ? (
+            <motion.button
+              onClick={()=>{ localStorage.removeItem(STORAGE_USER); setUsername(null); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+              style={{ ...btnBase, border:"1px solid rgba(251,191,36,0.22)", color:"rgba(251,191,36,0.72)",
+                background:"rgba(251,191,36,0.07)", fontSize:"0.65rem", fontFamily:"'Cinzel',serif",
+                letterSpacing:"0.08em" }}
+              whileTap={{ scale:0.95 }}
+              title="Tap to log out">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+              </svg>
+              <span className="font-mono text-[9px] tracking-widest">{username}</span>
+            </motion.button>
+          ) : (
+            <motion.button
+              onClick={()=>setShowLoginPrompt(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+              style={{ ...btnBase, border:"1px solid rgba(255,255,255,0.10)", color:"rgba(255,255,255,0.40)",
+                background:"rgba(255,255,255,0.04)", fontSize:"0.65rem", letterSpacing:"0.08em" }}
+              whileTap={{ scale:0.95 }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>
+              </svg>
+              <span className="font-mono text-[9px] tracking-widest">Login</span>
+            </motion.button>
+          )}
+          {/* X button */}
+          <button onClick={onX}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+            style={{ ...btnBase, border:"1px solid rgba(255,255,255,0.08)", color:"rgba(255,255,255,0.32)",
+              background:"rgba(255,255,255,0.03)" }}
+            aria-label="Follow on X">
+            <XIcon size={10}/>
+            <span className="font-mono text-[9px] tracking-widest">@million_doors</span>
+          </button>
+        </div>
       </div>
-      <button onClick={onX}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-        style={{ ...btnBase, border:"1px solid rgba(255,255,255,0.09)", color:"rgba(255,255,255,0.38)",
-          background:"rgba(255,255,255,0.04)", fontSize:"0.65rem", fontFamily:"'Cinzel',serif",
-          letterSpacing:"0.08em" }}
-        aria-label="Follow on X">
-        <XIcon size={11}/>
-        <span className="font-mono text-[9px] tracking-widest">@million_doors</span>
-      </button>
-    </div>
+
+      {/* Inline login sheet */}
+      <AnimatePresence>
+        {showLoginPrompt && (
+          <motion.div className="fixed inset-0 z-[180] flex items-end sm:items-center justify-center px-4"
+            style={{ paddingBottom:"calc(env(safe-area-inset-bottom) + 1rem)" }}
+            initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+            onClick={()=>setShowLoginPrompt(false)}>
+            <div className="absolute inset-0 bg-black/75" style={{ backdropFilter:"blur(14px)" }}/>
+            <motion.div className="relative w-full max-w-sm rounded-3xl border p-6"
+              style={{ background:"#060400", borderColor:"rgba(251,191,36,0.16)",
+                boxShadow:"0 0 60px rgba(251,191,36,0.08),0 24px 48px rgba(0,0,0,0.7)" }}
+              initial={{ y:32, scale:0.96 }} animate={{ y:0, scale:1 }} exit={{ y:32, scale:0.96 }}
+              transition={{ type:"spring", stiffness:320, damping:28 }}
+              onClick={e=>e.stopPropagation()}>
+              <p className="font-mono text-[9px] text-white/22 uppercase tracking-widest mb-4">Explorer Handle</p>
+              <input
+                type="text"
+                value={handle}
+                maxLength={24}
+                placeholder="e.g. doorwalker"
+                autoFocus
+                onChange={e=>setHandle(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&submitLogin()}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white/82 text-sm placeholder:text-white/18 outline-none mb-4 font-mono tracking-wider"
+                style={{ fontSize:"1rem" }}
+              />
+              <div className="flex gap-2.5">
+                <button onClick={()=>setShowLoginPrompt(false)}
+                  className="flex-shrink-0 px-5 rounded-full font-mono text-xs tracking-widest"
+                  style={{ ...btnBase, border:"1px solid rgba(255,255,255,0.10)", color:"rgba(255,255,255,0.35)",
+                    background:"rgba(255,255,255,0.04)", height:46 }}>
+                  Cancel
+                </button>
+                <motion.button onClick={submitLogin}
+                  className="flex-1 rounded-full text-black font-bold uppercase tracking-widest"
+                  style={{ ...btnBase, height:46, fontSize:"0.74rem", fontFamily:"'Cinzel',serif",
+                    background:"linear-gradient(135deg,#fef3c7 0%,#fbbf24 42%,#f59e0b 100%)" }}
+                  whileTap={{ scale:0.97 }}>
+                  Enter
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
 function SectionHeader({ title, sub }: { title:string; sub:string }) {
   return (
-    <div className="pt-4 pb-3 px-4">
-      <h2 className="text-xl font-semibold text-amber-100/80 mb-0.5"
-        style={{ fontFamily:"'Cinzel',serif", letterSpacing:"0.07em" }}>{title}</h2>
-      <p className="font-mono text-[10px] text-white/22 uppercase tracking-widest">{sub}</p>
+    <div className="pt-5 pb-3 px-4">
+      <motion.h2
+        className="text-xl font-semibold text-amber-100/85 mb-1"
+        style={{ fontFamily:"'Cinzel',serif", letterSpacing:"0.08em" }}
+        initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.5, ease:[0.16,1,0.3,1] }}>
+        {title}
+      </motion.h2>
+      <p className="font-mono text-[9px] text-white/20 uppercase tracking-[0.3em]">{sub}</p>
     </div>
   );
 }
