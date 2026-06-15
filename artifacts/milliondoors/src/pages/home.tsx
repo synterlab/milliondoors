@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useSpring } from "framer-motion";
+import { motion, useMotionValue, useSpring, AnimatePresence } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Github } from "lucide-react";
 
@@ -19,10 +19,10 @@ function DoorMark({ size = 32 }: { size?: number }) {
 }
 
 /* ─── CountUp ────────────────────────────────────────────────── */
-function CountUp({ target, duration = 2800 }: { target: number; duration?: number }) {
+function CountUp({ target, duration = 3200 }: { target: number; duration?: number }) {
   const [val, setVal] = useState(0);
   useEffect(() => {
-    const steps = 100;
+    const steps = 120;
     let frame = 0;
     const id = setInterval(() => {
       frame++;
@@ -35,6 +35,11 @@ function CountUp({ target, duration = 2800 }: { target: number; duration?: numbe
   return <>{val.toLocaleString()}</>;
 }
 
+/* ─── Lerp helper ───────────────────────────────────────────── */
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * Math.min(1, Math.max(0, t));
+}
+
 /* ─── Cinematic Corridor Canvas ─────────────────────────────── */
 function CorridorBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -42,132 +47,155 @@ function CorridorBackground() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d", { alpha: false })!;
 
     let animId: number;
     let t = 0;
 
+    // ── DPR-aware resize ──────────────────────────────────────
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
+      ctx.scale(dpr, dpr);
     };
     resize();
     window.addEventListener("resize", resize);
 
-    const DUST = Array.from({ length: 120 }, () => ({
+    // ── Dust particles (fewer for performance) ────────────────
+    const DUST = Array.from({ length: 80 }, () => ({
       x: Math.random(),
       y: Math.random(),
-      r: Math.random() * 1.2 + 0.3,
-      speed: Math.random() * 0.00015 + 0.00005,
-      opacity: Math.random() * 0.35 + 0.05,
-      drift: (Math.random() - 0.5) * 0.0001,
+      r: Math.random() * 1.0 + 0.3,
+      speed: Math.random() * 0.00012 + 0.00004,
+      opacity: Math.random() * 0.28 + 0.04,
+      drift: (Math.random() - 0.5) * 0.00008,
     }));
 
-    function drawFrame() {
-      const W = canvas.width;
-      const H = canvas.height;
-      t += 0.004;
+    let frameCount = 0;
 
+    function drawFrame() {
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      t += 0.003; // slower = smoother dolly
+      frameCount++;
+
+      // ── Background ──────────────────────────────────────────
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
 
+      // ── Vanishing point ─────────────────────────────────────
       const vpX = W / 2;
       const vpY = H * 0.46;
 
-      const glowPulse = 0.82 + Math.sin(t * 0.8) * 0.18;
-      const grd = ctx.createRadialGradient(vpX, vpY, 0, vpX, vpY, W * 0.5);
-      grd.addColorStop(0, `rgba(255,200,80,${0.28 * glowPulse})`);
-      grd.addColorStop(0.08, `rgba(255,160,30,${0.18 * glowPulse})`);
-      grd.addColorStop(0.22, `rgba(180,100,10,${0.09 * glowPulse})`);
-      grd.addColorStop(0.5, `rgba(60,20,0,${0.04})`);
-      grd.addColorStop(1, "rgba(0,0,0,0)");
+      const glowPulse = 0.82 + Math.sin(t * 0.7) * 0.18;
+      const grd = ctx.createRadialGradient(vpX, vpY, 0, vpX, vpY, W * 0.52);
+      grd.addColorStop(0,    `rgba(255,200,80,${0.26 * glowPulse})`);
+      grd.addColorStop(0.08, `rgba(255,160,30,${0.16 * glowPulse})`);
+      grd.addColorStop(0.25, `rgba(160,80,10,${0.07 * glowPulse})`);
+      grd.addColorStop(0.55, `rgba(40,10,0,0.03)`);
+      grd.addColorStop(1,    "rgba(0,0,0,0)");
       ctx.fillStyle = grd;
       ctx.fillRect(0, 0, W, H);
 
-      const LAYERS = 12;
-      const baseW = W * 0.58;
-      const baseH = H * 0.80;
-      const zoom = ((t * 0.18) % 1);
+      // ── Corridor doors (seamless infinite loop) ──────────────
+      const LAYERS = 10;
+      const baseW  = W * 0.58;
+      const baseH  = H * 0.80;
+
+      // Continuous phase — no visible jump
+      const phase  = t * 0.16;   // grows forever
+      const zoom   = phase % 1;  // fractional offset [0,1)
 
       for (let i = LAYERS; i >= 0; i--) {
-        const raw = i + zoom;
-        const scale = Math.pow(0.72, raw);
-        const dw = baseW * scale;
-        const dh = baseH * scale;
-        const x = vpX - dw / 2;
-        const y = vpY - dh * 0.62;
-
+        const raw   = i + zoom;
+        const scale = Math.pow(0.74, raw);
+        const dw    = baseW * scale;
+        const dh    = baseH * scale;
+        const x     = vpX - dw / 2;
+        const y     = vpY - dh * 0.62;
         const depth = raw / LAYERS;
-        const alpha = Math.min(1, (1 - depth) * 1.4);
-        if (alpha < 0.01) continue;
 
-        const frameW = 3.5 * scale;
-        ctx.strokeStyle = `rgba(${lerp(255, 60, depth)},${lerp(220, 40, depth)},${lerp(100, 10, depth)},${alpha * 0.85})`;
-        ctx.lineWidth = frameW;
+        // smooth fade-in for the foreground door (prevents jump at loop wrap)
+        const foregroundFade = i === 0 ? Math.min(1, zoom / 0.18) : 1;
+        const alpha = Math.min(1, (1 - depth) * 1.45) * foregroundFade;
+        if (alpha < 0.015 || dw < 2) continue;
+
+        const r  = Math.round(lerp(255, 55, depth));
+        const g  = Math.round(lerp(210, 38, depth));
+        const b  = Math.round(lerp(90,  8,  depth));
+
+        // Door frame
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.88})`;
+        ctx.lineWidth   = Math.max(0.5, 3.5 * scale);
         ctx.strokeRect(x, y, dw, dh);
 
-        if (scale > 0.06) {
+        // Inner panels (only for larger doors)
+        if (scale > 0.055) {
           const pw = dw * 0.1;
           const ph = dh * 0.08;
-          ctx.strokeStyle = `rgba(${lerp(255, 60, depth)},${lerp(200, 30, depth)},${lerp(80, 5, depth)},${alpha * 0.35})`;
-          ctx.lineWidth = frameW * 0.5;
-          ctx.strokeRect(x + pw, y + ph, dw - pw * 2, dh * 0.38 - ph);
-          ctx.strokeRect(x + pw, y + dh * 0.42, dw - pw * 2, dh * 0.5 - ph);
+          ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.28})`;
+          ctx.lineWidth   = Math.max(0.4, 1.8 * scale);
+          ctx.strokeRect(x + pw, y + ph,          dw - pw * 2, dh * 0.38 - ph);
+          ctx.strokeRect(x + pw, y + dh * 0.42,   dw - pw * 2, dh * 0.50 - ph);
         }
 
-        if (scale > 0.12) {
-          const kx = x + dw * 0.72;
-          const ky = y + dh * 0.55;
-          const kr = 2.5 * scale;
+        // Knob
+        if (scale > 0.11) {
           ctx.beginPath();
-          ctx.arc(kx, ky, kr, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255,200,80,${alpha * 0.7})`;
+          ctx.arc(x + dw * 0.72, y + dh * 0.55, Math.max(1, 2.4 * scale), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,195,75,${alpha * 0.75})`;
           ctx.fill();
         }
 
-        if (scale > 0.08) {
-          const floorGrd = ctx.createRadialGradient(vpX, y + dh, 0, vpX, y + dh, dw * 0.7);
-          floorGrd.addColorStop(0, `rgba(255,160,30,${alpha * 0.12})`);
-          floorGrd.addColorStop(1, "rgba(0,0,0,0)");
-          ctx.fillStyle = floorGrd;
-          ctx.fillRect(x - dw * 0.2, y + dh - 2, dw * 1.4, dw * 0.3);
+        // Floor ambient glow
+        if (scale > 0.075) {
+          const fg = ctx.createRadialGradient(vpX, y + dh, 0, vpX, y + dh, dw * 0.65);
+          fg.addColorStop(0, `rgba(255,155,25,${alpha * 0.10})`);
+          fg.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = fg;
+          ctx.fillRect(x - dw * 0.25, y + dh - 2, dw * 1.5, dw * 0.28);
         }
       }
 
-      const wallAlpha = 0.18;
-      drawWallLine(ctx, 0, 0, vpX, vpY, `rgba(255,180,60,${wallAlpha})`);
-      drawWallLine(ctx, W, 0, vpX, vpY, `rgba(255,180,60,${wallAlpha})`);
-      drawWallLine(ctx, 0, H, vpX, vpY, `rgba(255,180,60,${wallAlpha})`);
-      drawWallLine(ctx, W, H, vpX, vpY, `rgba(255,180,60,${wallAlpha})`);
+      // ── Perspective wall lines ───────────────────────────────
+      for (const [x1, y1] of [[0,0],[W,0],[0,H],[W,H]] as const) {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(vpX, vpY);
+        ctx.strokeStyle = "rgba(255,175,55,0.14)";
+        ctx.lineWidth   = 1;
+        ctx.stroke();
+      }
 
+      // ── Dust (every frame) ───────────────────────────────────
       for (const p of DUST) {
         p.y -= p.speed;
         p.x += p.drift;
-        if (p.y < -0.01) { p.y = 1.01; p.x = Math.random(); }
+        if (p.y < -0.01) { p.y = 1.02; p.x = Math.random(); }
 
-        const px = p.x * W;
-        const py = p.y * H;
+        const px   = p.x * W;
+        const py   = p.y * H;
         const dist = Math.hypot(px - vpX, py - vpY) / (W * 0.5);
-        const alpha = p.opacity * Math.max(0, 1 - dist * 1.8);
+        const a    = p.opacity * Math.max(0, 1 - dist * 1.9);
+        if (a < 0.01) continue;
 
         ctx.beginPath();
         ctx.arc(px, py, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,220,120,${alpha})`;
+        ctx.fillStyle = `rgba(255,218,115,${a})`;
         ctx.fill();
       }
 
-      const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, W * 0.85);
+      // ── Vignette ────────────────────────────────────────────
+      const vig = ctx.createRadialGradient(W/2, H/2, H*0.28, W/2, H/2, W*0.88);
       vig.addColorStop(0, "rgba(0,0,0,0)");
-      vig.addColorStop(1, "rgba(0,0,0,0.88)");
+      vig.addColorStop(1, "rgba(0,0,0,0.90)");
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
-
-      if (t % 0.1 < 0.004) {
-        ctx.fillStyle = "rgba(0,0,0,0.03)";
-        for (let k = 0; k < 800; k++) {
-          ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
-        }
-      }
 
       animId = requestAnimationFrame(drawFrame);
     }
@@ -182,39 +210,26 @@ function CorridorBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full"
-      style={{ display: "block" }}
+      className="absolute inset-0"
+      style={{ display: "block", willChange: "transform", transform: "translateZ(0)" }}
     />
   );
-}
-
-function drawWallLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, color: string) {
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-}
-
-function lerp(a: number, b: number, t: number) {
-  return Math.round(a + (b - a) * Math.min(1, t));
 }
 
 /* ─── Navbar ─────────────────────────────────────────────────── */
 function Nav() {
   return (
     <motion.nav
-      initial={{ opacity: 0, y: -16 }}
+      initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 1.2, delay: 2.2, ease: [0.16, 1, 0.3, 1] }}
       className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-10 h-16"
-      style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)" }}
+      style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, transparent 100%)" }}
     >
-      <div className="flex items-center gap-2.5 text-amber-200/90">
+      <div className="flex items-center gap-2.5 text-amber-200/85">
         <DoorMark size={28} />
         <span
-          className="font-display font-semibold text-base tracking-[0.12em] uppercase"
+          className="font-display font-semibold text-base uppercase"
           style={{ letterSpacing: "0.14em" }}
         >
           Million Doors
@@ -225,19 +240,19 @@ function Nav() {
           href="https://github.com/synterlab/milliondoors"
           target="_blank"
           rel="noreferrer"
-          className="hidden sm:flex items-center gap-1.5 text-white/35 hover:text-white/70 transition-colors text-xs font-mono tracking-widest"
-          whileHover={{ scale: 1.03 }}
+          className="hidden sm:flex items-center gap-1.5 text-white/30 hover:text-white/65 transition-colors duration-300 text-xs font-mono tracking-widest"
+          whileHover={{ scale: 1.04 }}
         >
           <Github className="w-3.5 h-3.5" />
           <span>GitHub</span>
         </motion.a>
         <motion.a
           href={APP_URL}
-          className="flex items-center px-5 py-2 rounded-full bg-amber-400 text-black text-xs font-bold tracking-[0.16em] uppercase"
-          whileHover={{ scale: 1.04, backgroundColor: "#fcd34d" }}
-          whileTap={{ scale: 0.97 }}
-          transition={{ type: "spring", stiffness: 400, damping: 20 }}
-          style={{ fontFamily: "'Cinzel', serif" }}
+          className="flex items-center px-5 py-2 rounded-full bg-amber-400 text-black text-xs font-bold uppercase"
+          style={{ fontFamily: "'Cinzel', serif", letterSpacing: "0.14em" }}
+          whileHover={{ scale: 1.05, backgroundColor: "#fcd34d" }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: "spring", stiffness: 380, damping: 22 }}
         >
           Open App
         </motion.a>
@@ -246,163 +261,192 @@ function Nav() {
   );
 }
 
-/* ─── Stagger variants ───────────────────────────────────────── */
-const fadeUp = {
-  hidden: { opacity: 0, y: 28, filter: "blur(10px)" },
-  show: (i: number) => ({
-    opacity: 1, y: 0, filter: "blur(0px)",
-    transition: { duration: 0.95, delay: 0.15 + i * 0.13, ease: [0.16, 1, 0.3, 1] },
-  }),
-};
-
 /* ─── Page ───────────────────────────────────────────────────── */
 export default function Home() {
+  const [introGone, setIntroGone] = useState(false);
+
+  // Subtle parallax
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const springX = useSpring(mouseX, { stiffness: 30, damping: 25 });
-  const springY = useSpring(mouseY, { stiffness: 30, damping: 25 });
+  const springX = useSpring(mouseX, { stiffness: 22, damping: 28 });
+  const springY = useSpring(mouseY, { stiffness: 22, damping: 28 });
 
   const handleMouse = (e: React.MouseEvent) => {
-    mouseX.set((e.clientX - window.innerWidth / 2) * 0.012);
-    mouseY.set((e.clientY - window.innerHeight / 2) * 0.012);
+    mouseX.set((e.clientX - window.innerWidth  / 2) * 0.008);
+    mouseY.set((e.clientY - window.innerHeight / 2) * 0.008);
   };
+
+  // Stagger timing — all content waits for intro to clear
+  const INTRO_DUR   = 1.8;  // black overlay fade duration
+  const CONTENT_START = 1.0; // content starts fading in at t=1.0s
+
+  const item = (i: number) => ({
+    initial:  { opacity: 0, y: 20, filter: "blur(8px)" },
+    animate:  { opacity: 1, y: 0,  filter: "blur(0px)" },
+    transition: {
+      duration: 1.1,
+      delay: CONTENT_START + i * 0.16,
+      ease: [0.16, 1, 0.3, 1],
+    },
+  });
 
   return (
     <>
+      {/* ── Cinematic black intro overlay ── */}
+      <AnimatePresence>
+        {!introGone && (
+          <motion.div
+            className="fixed inset-0 z-[100] bg-black pointer-events-none"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: INTRO_DUR, ease: [0.4, 0, 0.2, 1] }}
+            onAnimationComplete={() => setIntroGone(true)}
+          />
+        )}
+      </AnimatePresence>
+
       <Nav />
+
       <div
         className="relative min-h-[100dvh] flex flex-col items-center justify-center overflow-hidden select-none bg-black"
         onMouseMove={handleMouse}
       >
+        {/* GPU-accelerated corridor */}
         <CorridorBackground />
 
-        {/* Dark scrim */}
+        {/* Dark scrim for text legibility */}
         <div
           className="absolute inset-0 z-[1] pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse 75% 80% at 50% 52%, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.0) 75%)",
+            background: "radial-gradient(ellipse 72% 78% at 50% 52%, rgba(0,0,0,0.68) 0%, rgba(0,0,0,0.0) 72%)",
           }}
         />
 
         {/* Content */}
         <motion.div
-          className="relative z-10 flex flex-col items-center text-center px-6 max-w-2xl mx-auto w-full"
+          className="relative z-10 flex flex-col items-center text-center px-6 max-w-xl mx-auto w-full"
           style={{ x: springX, y: springY }}
         >
-          {/* Live counter badge */}
-          <motion.div
-            custom={0} variants={fadeUp} initial="hidden" animate="show"
-            className="flex items-center gap-2.5 mb-8"
-          >
+          {/* Live counter */}
+          <motion.div className="flex items-center gap-2.5 mb-9" {...item(0)}>
             <motion.span
               className="w-1.5 h-1.5 rounded-full bg-amber-400"
-              animate={{ opacity: [1, 0.2, 1], scale: [1, 1.4, 1] }}
-              transition={{ duration: 1.8, repeat: Infinity }}
+              animate={{ opacity: [1, 0.2, 1], scale: [1, 1.5, 1] }}
+              transition={{ duration: 2.0, repeat: Infinity, ease: "easeInOut" }}
             />
-            <span className="font-mono text-[10px] text-amber-200/45 tracking-[0.4em] uppercase">
+            <span className="font-mono text-[10px] text-amber-200/42 tracking-[0.42em] uppercase">
               <CountUp target={4821943} /> doors opened worldwide
             </span>
           </motion.div>
 
-          {/* Headline */}
-          <motion.div custom={1} variants={fadeUp} initial="hidden" animate="show" className="mb-5">
-            <p className="font-mono text-[9px] text-white/20 tracking-[0.6em] uppercase mb-6">
-              10,000,000 doors exist
-            </p>
+          {/* Eyebrow */}
+          <motion.p
+            className="font-mono text-[9px] text-white/18 tracking-[0.65em] uppercase mb-7"
+            {...item(1)}
+          >
+            10,000,000 doors exist
+          </motion.p>
+
+          {/* Main headline — line 1 */}
+          <motion.div {...item(2)}>
             <h1
-              className="font-display leading-[0.92] text-white"
+              className="font-display text-white leading-[0.90]"
               style={{
-                fontSize: "clamp(3rem,9.5vw,7.5rem)",
+                fontSize: "clamp(3rem, 9.5vw, 7.5rem)",
                 fontWeight: 700,
-                letterSpacing: "0.02em",
-                textShadow: "0 0 80px rgba(255,160,30,0.2), 0 0 160px rgba(255,100,0,0.08)",
+                letterSpacing: "0.03em",
+                textShadow: "0 0 90px rgba(255,150,20,0.15), 0 0 30px rgba(255,120,0,0.06)",
               }}
             >
               Each door
-              <br />
-              <span
-                style={{
-                  background: "linear-gradient(135deg, #fef9e7 0%, #fcd34d 30%, #f59e0b 65%, #d97706 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  filter: "drop-shadow(0 0 28px rgba(251,191,36,0.5))",
-                  display: "inline-block",
-                }}
-              >
-                opens once.
-              </span>
             </h1>
           </motion.div>
 
-          {/* Divider line */}
+          {/* Main headline — line 2 (slight delay for cinematic reveal) */}
+          <motion.div className="mb-7" {...item(3)}>
+            <h1
+              className="font-display leading-[0.90]"
+              style={{
+                fontSize: "clamp(3rem, 9.5vw, 7.5rem)",
+                fontWeight: 700,
+                letterSpacing: "0.03em",
+                background: "linear-gradient(135deg, #fef9e7 0%, #fcd34d 28%, #f59e0b 62%, #d97706 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                filter: "drop-shadow(0 0 28px rgba(251,191,36,0.48))",
+                display: "inline-block",
+              }}
+            >
+              opens once.
+            </h1>
+          </motion.div>
+
+          {/* Thin gold rule */}
           <motion.div
-            custom={2} variants={fadeUp} initial="hidden" animate="show"
-            className="w-16 h-px mb-6"
-            style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.4), transparent)" }}
+            className="w-12 h-px mb-7"
+            style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.45), transparent)" }}
+            {...item(4)}
           />
 
-          {/* Description */}
+          {/* Body copy */}
           <motion.p
-            custom={3} variants={fadeUp} initial="hidden" animate="show"
-            className="text-white/40 text-sm md:text-base leading-loose mb-10 tracking-wide"
+            className="text-white/38 text-sm leading-loose tracking-wide mb-11"
             style={{ fontFamily: "'Inter', sans-serif", fontWeight: 300 }}
+            {...item(5)}
           >
             Most contain nothing.
             <br />
-            <span className="text-white/60 font-normal">Some hide rare discoveries.</span>
+            <span className="text-white/58 font-normal">Some hide rare discoveries.</span>
           </motion.p>
 
           {/* CTAs */}
-          <motion.div
-            custom={4} variants={fadeUp} initial="hidden" animate="show"
-            className="flex flex-col sm:flex-row items-center gap-4"
-          >
-            {/* Primary CTA */}
+          <motion.div className="flex flex-col sm:flex-row items-center gap-4" {...item(6)}>
+            {/* Primary */}
             <motion.a
               href={APP_URL}
               className="relative flex items-center justify-center px-12 py-4 rounded-full overflow-hidden text-black"
               style={{
-                background: "linear-gradient(135deg, #fef3c7 0%, #fbbf24 40%, #f59e0b 100%)",
-                boxShadow: "0 0 40px rgba(251,191,36,0.4), 0 0 80px rgba(251,191,36,0.12)",
+                background: "linear-gradient(135deg, #fef3c7 0%, #fbbf24 42%, #f59e0b 100%)",
+                boxShadow: "0 0 38px rgba(251,191,36,0.38), 0 0 75px rgba(251,191,36,0.10)",
                 fontFamily: "'Cinzel', serif",
                 fontWeight: 700,
-                fontSize: "0.75rem",
-                letterSpacing: "0.22em",
+                fontSize: "0.72rem",
+                letterSpacing: "0.24em",
               }}
               whileHover={{
-                scale: 1.05,
-                boxShadow: "0 0 55px rgba(251,191,36,0.6), 0 0 110px rgba(251,191,36,0.22)",
+                scale: 1.06,
+                boxShadow: "0 0 55px rgba(251,191,36,0.62), 0 0 110px rgba(251,191,36,0.22)",
               }}
               whileTap={{ scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 380, damping: 18 }}
+              transition={{ type: "spring", stiffness: 340, damping: 20 }}
             >
-              {/* Shimmer */}
+              {/* Shimmer sweep */}
               <motion.div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.42) 50%, transparent 70%)",
-                  backgroundSize: "200% 100%",
+                  background: "linear-gradient(105deg, transparent 25%, rgba(255,255,255,0.44) 50%, transparent 75%)",
+                  backgroundSize: "220% 100%",
                 }}
-                animate={{ backgroundPosition: ["-100% 0%", "200% 0%"] }}
-                transition={{ duration: 2.8, repeat: Infinity, repeatDelay: 2.2, ease: "easeInOut" }}
+                animate={{ backgroundPosition: ["-110% 0%", "210% 0%"] }}
+                transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 2.8, ease: "easeInOut" }}
               />
               <span className="relative z-10 uppercase">Open a Door</span>
             </motion.a>
 
-            {/* Daily door pill */}
+            {/* Daily door */}
             <motion.div
-              className="flex items-center gap-2.5 px-6 py-3.5 rounded-full border border-amber-500/20 bg-black/35 backdrop-blur"
-              whileHover={{ borderColor: "rgba(251,191,36,0.4)", backgroundColor: "rgba(0,0,0,0.55)" }}
-              transition={{ duration: 0.2 }}
+              className="flex items-center gap-2.5 px-6 py-3.5 rounded-full border border-amber-500/18 bg-black/30 backdrop-blur-sm"
+              whileHover={{ borderColor: "rgba(251,191,36,0.38)", backgroundColor: "rgba(0,0,0,0.52)" }}
+              transition={{ duration: 0.25 }}
             >
               <motion.span
                 className="w-1.5 h-1.5 rounded-full bg-amber-400"
                 animate={{ opacity: [1, 0.25, 1] }}
-                transition={{ duration: 1.4, repeat: Infinity }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
               />
               <span
-                className="text-amber-300/55 tracking-[0.28em] uppercase"
-                style={{ fontFamily: "'Cinzel', serif", fontSize: "0.65rem", fontWeight: 600 }}
+                className="text-amber-300/52 uppercase"
+                style={{ fontFamily: "'Cinzel', serif", fontSize: "0.62rem", fontWeight: 600, letterSpacing: "0.28em" }}
               >
                 Daily Door Available
               </span>
@@ -411,10 +455,15 @@ export default function Home() {
         </motion.div>
 
         {/* Bottom bar */}
-        <div className="absolute bottom-6 left-0 right-0 z-10 flex items-center justify-between px-8">
+        <motion.div
+          className="absolute bottom-6 left-0 right-0 z-10 flex items-center justify-between px-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.2, delay: CONTENT_START + 1.2 }}
+        >
           <span
-            className="text-white/15 tracking-widest uppercase"
-            style={{ fontFamily: "'Cinzel', serif", fontSize: "0.55rem", letterSpacing: "0.25em" }}
+            className="text-white/14 uppercase"
+            style={{ fontFamily: "'Cinzel', serif", fontSize: "0.52rem", letterSpacing: "0.26em" }}
           >
             synterlab / milliondoors
           </span>
@@ -422,21 +471,21 @@ export default function Home() {
             href="https://x.com/xyzmiiliondoors"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/8 bg-black/30 backdrop-blur"
-            whileHover={{ borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(0,0,0,0.5)", scale: 1.04 }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/8 bg-black/28 backdrop-blur-sm"
+            whileHover={{ borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(0,0,0,0.52)", scale: 1.05 }}
             transition={{ duration: 0.2 }}
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-white/30">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="text-white/28">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.629 5.905-5.629Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
             </svg>
             <span className="font-mono text-[9px] text-white/25 tracking-wide">@xyzmiiliondoors</span>
             <motion.span
               className="w-1 h-1 rounded-full bg-amber-400"
               animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
+              transition={{ duration: 2.2, repeat: Infinity }}
             />
           </motion.a>
-        </div>
+        </motion.div>
       </div>
     </>
   );
