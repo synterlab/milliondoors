@@ -22,15 +22,17 @@ function DoorMark({ size = 32 }: { size?: number }) {
 function CountUp({ target, duration = 3200 }: { target: number; duration?: number }) {
   const [val, setVal] = useState(0);
   useEffect(() => {
-    const steps = 120;
-    let frame = 0;
-    const id = setInterval(() => {
-      frame++;
-      const eased = 1 - Math.pow(1 - frame / steps, 4);
+    let startTs: number | null = null;
+    let rafId: number;
+    function tick(ts: number) {
+      if (!startTs) startTs = ts;
+      const progress = Math.min((ts - startTs) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 4);
       setVal(Math.round(eased * target));
-      if (frame >= steps) clearInterval(id);
-    }, duration / steps);
-    return () => clearInterval(id);
+      if (progress < 1) rafId = requestAnimationFrame(tick);
+    }
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }, [target, duration]);
   return <>{val.toLocaleString()}</>;
 }
@@ -51,17 +53,30 @@ function CorridorBackground() {
 
     let animId: number;
     let t = 0;
+    let lastTs = 0;
 
     // ── DPR-aware resize ──────────────────────────────────────
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let cachedW = window.innerWidth;
+    let cachedH = window.innerHeight;
+    let vigGrd: CanvasGradient | null = null;
+
+    const buildVignette = (W: number, H: number) => {
+      const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.28, W / 2, H / 2, W * 0.88);
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(1, "rgba(0,0,0,0.90)");
+      return g;
+    };
+
     const resize = () => {
-      const W = window.innerWidth;
-      const H = window.innerHeight;
-      canvas.width = W * dpr;
-      canvas.height = H * dpr;
-      canvas.style.width = W + "px";
-      canvas.style.height = H + "px";
+      cachedW = window.innerWidth;
+      cachedH = window.innerHeight;
+      canvas.width = cachedW * dpr;
+      canvas.height = cachedH * dpr;
+      canvas.style.width = cachedW + "px";
+      canvas.style.height = cachedH + "px";
       ctx.scale(dpr, dpr);
+      vigGrd = buildVignette(cachedW, cachedH);
     };
     resize();
     window.addEventListener("resize", resize);
@@ -76,13 +91,12 @@ function CorridorBackground() {
       drift: (Math.random() - 0.5) * 0.00008,
     }));
 
-    let frameCount = 0;
-
-    function drawFrame() {
-      const W = window.innerWidth;
-      const H = window.innerHeight;
-      t += 0.003; // slower = smoother dolly
-      frameCount++;
+    function drawFrame(ts: number) {
+      const delta = lastTs ? Math.min((ts - lastTs) / 16.667, 2) : 1;
+      lastTs = ts;
+      const W = cachedW;
+      const H = cachedH;
+      t += 0.003 * delta; // frame-rate independent dolly
 
       // ── Background ──────────────────────────────────────────
       ctx.fillStyle = "#000";
@@ -190,12 +204,11 @@ function CorridorBackground() {
         ctx.fill();
       }
 
-      // ── Vignette ────────────────────────────────────────────
-      const vig = ctx.createRadialGradient(W/2, H/2, H*0.28, W/2, H/2, W*0.88);
-      vig.addColorStop(0, "rgba(0,0,0,0)");
-      vig.addColorStop(1, "rgba(0,0,0,0.90)");
-      ctx.fillStyle = vig;
-      ctx.fillRect(0, 0, W, H);
+      // ── Vignette (cached — rebuilt only on resize) ───────────
+      if (vigGrd) {
+        ctx.fillStyle = vigGrd;
+        ctx.fillRect(0, 0, W, H);
+      }
 
       animId = requestAnimationFrame(drawFrame);
     }
